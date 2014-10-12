@@ -29,6 +29,10 @@ def get_plugins_from_path(path):
     and returns a tuple of their names
     """
     importer = pkgutil.get_importer(path)
+    # TODO: iter_modules is gone in py3?
+    #       check for replacement
+    if not hasattr(importer, "iter_modules"):
+        return ()
     return tuple(x[0] for x in importer.iter_modules())
 
 
