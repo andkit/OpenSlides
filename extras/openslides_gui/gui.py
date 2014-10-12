@@ -1,6 +1,4 @@
-from __future__ import unicode_literals
-
-import Queue
+import queue
 import datetime
 import errno
 import gettext
@@ -13,13 +11,12 @@ import sys
 import threading
 
 import wx
+import wx.adv
 
 import openslides
 
 from openslides.utils.main import (
     detect_openslides_type,
-    filesystem2unicode,
-    unicode2filesystem,
     get_default_user_data_path,
     get_port,
     PortableDirNotWritable,
@@ -29,13 +26,12 @@ from openslides.utils.main import (
 # NOTE: djangos translation module can't be used here since it requires
 #       a defined settings module
 _translations = gettext.NullTranslations()
-_ = lambda text: _translations.ugettext(text)
-ungettext = lambda msg1, msg2, n: _translations.ungettext(msg1, msg2, n)
+_ = lambda text: _translations.gettext(text)
+ngettext = lambda msg1, msg2, n: _translations.ngettext(msg1, msg2, n)
 
 
 def get_data_path(*args):
-    path = filesystem2unicode(__file__)
-    return os.path.join(os.path.dirname(path), "data", *args)
+    return os.path.join(os.path.dirname(__file__), "data", *args)
 
 
 class RunCmdEvent(wx.PyCommandEvent):
@@ -56,7 +52,7 @@ class RunCommandControl(wx.Panel):
         super(RunCommandControl, self).__init__(parent)
 
         self.child_process = None
-        self.output_queue = Queue.Queue()
+        self.output_queue = queue.Queue()
         self.output_read_thread = None
         self.canceled = False
         self.output_mutex = threading.RLock()
@@ -93,10 +89,6 @@ class RunCommandControl(wx.Panel):
         cmd = [sys.executable, "-u", "-m", "openslides"]
         cmd.extend(args)
 
-        # XXX: subprocess on windows only handles byte strings
-        #      with python3 this will hopefully no longer be the case
-        cmd = [unicode2filesystem(x) for x in cmd]
-
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         self.child_process = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -129,7 +121,7 @@ class RunCommandControl(wx.Panel):
         for line_no in itertools.count():
             try:
                 data = self.output_queue.get(block=False)
-            except Queue.Empty:
+            except queue.Empty:
                 break
             else:
                 # XXX: check whether django uses utf-8 or locale for
@@ -180,7 +172,7 @@ class SettingsDialog(wx.Dialog):
 
         sizer = self.CreateButtonSizer(wx.OK | wx.CANCEL)
         if not sizer is None:
-            grid.Add((0, 0), pos=(row, 0), span=(1, 2))
+            grid.Add(0, 0, pos=(row, 0), span=(1, 2))
             row += 1
             grid.Add(sizer, pos=(row, 0), span=(1, 2))
 
@@ -248,7 +240,7 @@ class BackupSettingsDialog(wx.Dialog):
 
         sizer = self.CreateButtonSizer(wx.OK | wx.CANCEL)
         if not sizer is None:
-            grid.Add((0, 0), pos=(row, 0), span=(1, 3))
+            grid.Add(0, 0, pos=(row, 0), span=(1, 3))
             row += 1
             grid.Add(sizer, pos=(row, 0), span=(1, 3))
 
@@ -303,9 +295,9 @@ class BackupSettingsDialog(wx.Dialog):
     def _update_interval_choices(self):
         count = self.sb_interval.GetValue()
         choices = [
-            ungettext("second", "seconds", count),
-            ungettext("minute", "minutes", count),
-            ungettext("hour", "hours", count),
+            ngettext("second", "seconds", count),
+            ngettext("minute", "minutes", count),
+            ngettext("hour", "hours", count),
         ]
 
         current = self.ch_interval_unit.GetSelection()
@@ -335,7 +327,7 @@ class BackupSettingsDialog(wx.Dialog):
 class MainWindow(wx.Frame):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent, title="OpenSlides")
-        icons = wx.IconBundleFromFile(
+        icons = wx.IconBundle(
             get_data_path("openslides.ico"),
             wx.BITMAP_TYPE_ICO)
         self.SetIcons(icons)
@@ -366,7 +358,7 @@ class MainWindow(wx.Frame):
 
         fp = get_data_path("openslides-logo_wide.png")
         with open(fp, "rb") as f:
-            logo_wide_bmp = wx.ImageFromStream(f).ConvertToBitmap()
+            logo_wide_bmp = wx.Image(f).ConvertToBitmap()
 
         logo_wide = wx.StaticBitmap(panel, wx.ID_ANY, logo_wide_bmp)
         logo_box.AddSpacer(2 * spacing)
@@ -385,7 +377,7 @@ class MainWindow(wx.Frame):
         grid.Add(self.bt_about, pos=(row, 1), flag=wx.ALIGN_CENTER_VERTICAL)
         row += 1
 
-        grid.Add((0, spacing), pos=(row, 0), span=(1, 2))
+        grid.Add(0, spacing, pos=(row, 0), span=(1, 2))
         row += 1
 
         # server settings
@@ -420,7 +412,7 @@ class MainWindow(wx.Frame):
         server_box.Add(self.bt_server, flag=wx.EXPAND)
 
         self.host = "0.0.0.0"
-        self.port = unicode(get_port(self.host, 80))
+        self.port = str(get_port(self.host, 80))
 
         # "action" buttons
         action_vbox = wx.BoxSizer(wx.VERTICAL)
@@ -522,7 +514,7 @@ class MainWindow(wx.Frame):
             return
 
         try:
-            f = open(self.gui_settings_path, "rb")
+            f = open(self.gui_settings_path, "r", encoding="utf-8")
         except IOError as e:
             if e.errno == errno.ENOENT:
                 return
@@ -573,7 +565,7 @@ class MainWindow(wx.Frame):
         dp = os.path.dirname(self.gui_settings_path)
         if not os.path.exists(dp):
             os.makedirs(dp)
-        with open(self.gui_settings_path, "wb") as f:
+        with open(self.gui_settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=4)
 
     def apply_backup_settings(self):
@@ -626,7 +618,7 @@ class MainWindow(wx.Frame):
         self.cmd_run_ctrl.run_command("createsuperuser")
 
     def on_about_clicked(self, evt):
-        info = wx.AboutDialogInfo()
+        info = wx.adv.AboutDialogInfo()
         info.SetName("OpenSlides")
         info.SetVersion(openslides.get_version())
         info.SetDescription(_(
@@ -635,11 +627,11 @@ class MainWindow(wx.Frame):
             "OpenSlides is free software; licensed under the MIT license."
         ).replace(u" ", u"\u00a0"))
         info.SetCopyright(_(u"\u00a9 2011-2014 by OpenSlides team"))
-        info.SetWebSite(("http://www.openslides.org/", "www.openslides.org"))
+        info.SetWebSite("http://www.openslides.org/", "www.openslides.org")
 
         # XXX: at least on wxgtk this has no effect
         info.SetIcon(self.GetIcon())
-        wx.AboutBox(info)
+        wx.adv.AboutBox(info)
 
     def on_start_server_clicked(self, evt):
         if self.server_running:
@@ -739,17 +731,18 @@ class OpenslidesApp(wx.App):
         return True
 
 def main():
-    locale.setlocale(locale.LC_ALL, "")
+    app = OpenslidesApp()
+
+    wx.Locale(wx.LANGUAGE_DEFAULT)
     lang = locale.getdefaultlocale()[0]
     if lang:
         global _translations
-        localedir = filesystem2unicode(openslides.__file__)
+        localedir = openslides.__file__
         localedir = os.path.dirname(localedir)
         localedir = os.path.join(localedir, "locale")
         _translations = gettext.translation(
             "django", localedir, [lang], fallback=True)
 
-    app = OpenslidesApp()
     app.MainLoop()
 
 if __name__ == "__main__":
