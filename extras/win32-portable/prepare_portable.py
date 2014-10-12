@@ -42,9 +42,6 @@ LIBEXCLUDE = [
 
 
 SITE_PACKAGES = {
-    "backports.ssl_match_hostname": {
-        "copy": ["backports"],
-    },
     "beautifulsoup4": {
         "copy": ["bs4"],
     },
@@ -86,10 +83,6 @@ SITE_PACKAGES = {
     "reportlab": {
         "copy": [
             "reportlab",
-            "_renderPM.pyd",
-            "_rl_accel.pyd",
-            "pyHnj.pyd",
-            "sgmlop.pyd",
         ],
     },
     "roman": {
@@ -117,9 +110,9 @@ SITE_PACKAGES = {
     "whoosh": {
         "copy": ["whoosh"],
     },
-    "wx": {
-        # NOTE: wxpython is a special case, see copy_wx
-        "copy": [],
+    "wxpython-phoenix": {
+        "copy": ["wx"],
+        # TODO: update exclude-list for phoenx
         "exclude": [
             r"^wx/tools/",
             r"^wx/py/",
@@ -295,22 +288,12 @@ def copy_package(name, info, odir):
             copy_dir_exclude(exclude, site_dir, fp, odir)
 
 
-def copy_wx(odir):
-    base_dir = os.path.dirname(os.path.dirname(wx.__file__))
-    wx_dir = os.path.join(base_dir, "wx")
-    exclude = get_pkg_exclude("wx")
-    copy_dir_exclude(exclude, base_dir, wx_dir, odir)
-
-
 def collect_site_packages(sitedir, odir):
     if not os.path.exists(odir):
         os.makedirs(odir)
 
-    for name, info in SITE_PACKAGES.iteritems():
+    for name, info in SITE_PACKAGES.items():
         copy_package(name, info, odir)
-
-    assert "wx" in SITE_PACKAGES
-    copy_wx(odir)
 
 
 def compile_openslides_launcher():
@@ -347,8 +330,8 @@ def compile_openslides_launcher():
     ])
     cc.link_executable(
         objs, "extras/win32-portable/openslides",
-        extra_preargs=["/subsystem:windows", "/nodefaultlib:python27.lib"],
-        libraries=["user32"]
+        extra_preargs=["/subsystem:console", "/nodefaultlib:python34.lib", "/manifest"],
+        libraries=["user32"],
     )
     return True
 
